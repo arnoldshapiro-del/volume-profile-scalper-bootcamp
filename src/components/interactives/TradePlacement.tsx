@@ -19,7 +19,12 @@ const palette = {
 }
 
 export default function TradePlacement({ day, setups, onComplete }: Props) {
-  const [placements, setPlacements] = useState<Record<string, Placement>>({})
+  const [placements, setPlacements] = useState<Record<string, Placement>>(() => {
+    // Initialize each setup with default placement so user can accept-and-score
+    const init: Record<string, Placement> = {}
+    setups.forEach((s) => { init[s.id] = initialPlacement(s) })
+    return init
+  })
 
   function updatePlacement(setupId: string, field: keyof Placement, value: number) {
     setPlacements((p) => {
@@ -49,26 +54,25 @@ export default function TradePlacement({ day, setups, onComplete }: Props) {
         ))}
       </div>
 
-      <div className="mt-6 flex justify-end">
-        <button type="button" className="btn-primary disabled:opacity-40" disabled={!allDone} onClick={() => {
-          // Fill missing with initial so onComplete receives a complete map
-          const final: Record<string, Placement> = {}
-          setups.forEach((s) => { final[s.id] = placements[s.id] || initialPlacement(s) })
-          onComplete(final)
-        }}>Score the session →</button>
+      <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <p className="text-xs text-text-secondary">Defaults are pre-filled to ideal values. Adjust if you'd place differently, then score.</p>
+        <button type="button" className="btn-primary disabled:opacity-40" disabled={!allDone} onClick={() => onComplete(placements)}>Score the session →</button>
       </div>
     </div>
   )
 }
 
 function initialPlacement(setup: CapstoneSetup): Placement {
-  // Reasonable defaults so user can adjust rather than type from scratch
-  return {
-    entry: setup.idealEntry ?? Math.round((setup.highlightPriceMin + setup.highlightPriceMax) / 2),
-    stop: setup.idealStop ?? (setup.direction === 'long' ? setup.highlightPriceMin - 3 : setup.highlightPriceMax + 3),
-    t1: setup.idealT1 ?? 50,
-    t2: setup.idealT2 ?? 50,
-  }
+  // Neutral, non-ideal defaults — the user must think through proper placement.
+  // Entry: midpoint of the location's highlighted zone (visually anchored, not necessarily ideal)
+  const entry = Math.round((setup.highlightPriceMin + setup.highlightPriceMax) / 2)
+  const dir = setup.direction || 'long'
+  // Stop: a generic 4 points on the wrong side of trade — not at structure
+  const stop = dir === 'long' ? entry - 4 : entry + 4
+  // Targets: generic 5/10 points away — not tied to POC or VA edge
+  const t1 = dir === 'long' ? entry + 5 : entry - 5
+  const t2 = dir === 'long' ? entry + 10 : entry - 10
+  return { entry, stop, t1, t2 }
 }
 
 function PlacementCard({ day, setup, placement, onChange }: {
