@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-bg-base text-text-primary font-body antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  h1, h2, h3, h4 {
+    @apply font-head text-text-primary;
+  }
+  *:focus-visible {
+    outline: 2px solid #3B82F6;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-bg-card border border-border-subtle rounded-xl p-6 transition-all duration-200;
+  }
+  .card-hover {
+    @apply hover:border-accent-blue/60 hover:shadow-lg hover:shadow-accent-blue/10;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-head font-semibold
+           bg-gradient-to-r from-hvn-teal to-poc-gold text-bg-base
+           transition-transform duration-200 hover:scale-[1.02] active:scale-100
+           shadow-md;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-head font-medium
+           bg-bg-elevated border border-border-subtle text-text-primary
+           transition-all duration-200 hover:border-accent-blue hover:bg-bg-card;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono;
+  }
+  .mono { @apply font-mono; }
+  .heading { @apply font-head font-semibold tracking-tight; }
+}
+
+/* PRINT: Cheat Sheet light mode */
+@media print {
+  @page { size: letter portrait; margin: 0.5in; }
+  body { background: #ffffff !important; color: #000000 !important; }
+  .no-print { display: none !important; }
+  .print-card { border: 1px solid #d1d5db !important; background: #ffffff !important; color: #000 !important; page-break-inside: avoid; }
+  .print-title { color: #000 !important; }
+  .print-gold { color: #b45309 !important; }
+  .print-teal { color: #0f766e !important; }
+  .print-purple { color: #6d28d9 !important; }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0A0E1A; }
+::-webkit-scrollbar-thumb { background: #2A3654; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #3B82F6; }
