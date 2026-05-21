@@ -55,7 +55,7 @@ export default function TradePlacement({ day, setups, onComplete }: Props) {
       </div>
 
       <div className="mt-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <p className="text-xs text-text-secondary">Defaults are pre-filled to ideal values. Adjust if you'd place differently, then score.</p>
+        <p className="text-xs text-text-secondary">Defaults are generic placeholders — adjust each value to where YOU would place it using the chart and reference levels, then score.</p>
         <button type="button" className="btn-primary disabled:opacity-40" disabled={!allDone} onClick={() => onComplete(placements)}>Score the session →</button>
       </div>
     </div>
