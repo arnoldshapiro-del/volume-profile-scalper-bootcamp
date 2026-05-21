@@ -4,8 +4,9 @@ import PromiseCallout from '../components/PromiseCallout'
 import { useProgress } from '../hooks/useProgress'
 import { DAYS, type CapstoneDay, type OpenType } from '../data/capstone-days'
 import { useLocalStorage } from '../hooks/useLocalStorage'
+import TradePlacement, { scorePlacement, type Placement } from '../components/interactives/TradePlacement'
 
-type Phase = 'select' | 'premarket' | 'open' | 'setups' | 'score'
+type Phase = 'select' | 'premarket' | 'open' | 'setups' | 'place' | 'score'
 
 const palette = {
   bg: '#0A0E1A', border: '#2A3654', bull: '#10B981', bear: '#EF4444',
@@ -20,6 +21,8 @@ interface SessionScore {
   takeSkipCorrect: number
   takeSkipTotal: number
   premarketCount: number
+  placementScore: number
+  placementMax: number
   finalScore: number
 }
 
@@ -38,6 +41,7 @@ export default function Capstone() {
   const [premarketChecks, setPremarketChecks] = useState<boolean[]>(Array(PREMARKET_ITEMS.length).fill(false))
   const [openTypeAnswer, setOpenTypeAnswer] = useState<OpenType | null>(null)
   const [setupAnswers, setSetupAnswers] = useState<Record<string, 'TAKE' | 'SKIP' | null>>({})
+  const [placements, setPlacements] = useState<Record<string, Placement>>({})
   const [showCount, setShowCount] = useState(0)
   const [scores, setScores] = useLocalStorage<SessionScore[]>('vp_capstone_scores', [])
 
@@ -57,24 +61,54 @@ export default function Capstone() {
     setPremarketChecks(Array(PREMARKET_ITEMS.length).fill(false))
     setOpenTypeAnswer(null)
     setSetupAnswers({})
+    setPlacements({})
     setShowCount(0)
   }
 
-  function finalize() {
+  function afterSetups() {
+    if (!day) return
+    // If any TAKE setups, go to placement phase; else skip to score
+    const takeSetups = day.setups.filter((s) => setupAnswers[s.id] === 'TAKE' && s.idealEntry !== undefined)
+    if (takeSetups.length === 0) finalize()
+    else setPhase('place')
+  }
+
+  function finalize(finalPlacements: Record<string, Placement> = placements) {
     if (!day) return
     const openTypeCorrect = openTypeAnswer === day.openType
     let takeSkipCorrect = 0
     day.setups.forEach((s) => { if (setupAnswers[s.id] === s.optimal) takeSkipCorrect++ })
     const total = day.setups.length
     const premarketCount = premarketChecks.filter(Boolean).length
+
+    // Placement scoring: only count for TAKEs the user chose AND that have ideal values
+    let placementScore = 0
+    let placementMax = 0
+    day.setups.forEach((s) => {
+      if (setupAnswers[s.id] === 'TAKE' && s.idealEntry !== undefined && finalPlacements[s.id]) {
+        const { score, max } = scorePlacement(s, finalPlacements[s.id])
+        placementScore += score
+        placementMax += max
+      }
+    })
+
+    const placementWeighted = placementMax > 0 ? (placementScore / placementMax) * 15 : 0
     const finalScore = Math.round(
       (openTypeCorrect ? 25 : 0) +
-      (takeSkipCorrect / total) * 60 +
-      (premarketCount / PREMARKET_ITEMS.length) * 15
+      (takeSkipCorrect / total) * 50 +
+      (premarketCount / PREMARKET_ITEMS.length) * 10 +
+      placementWeighted
     )
-    const session: SessionScore = { dayId: day.id, openTypeCorrect, takeSkipCorrect, takeSkipTotal: total, premarketCount, finalScore }
+    const session: SessionScore = {
+      dayId: day.id, openTypeCorrect,
+      takeSkipCorrect, takeSkipTotal: total,
+      premarketCount,
+      placementScore, placementMax,
+      finalScore,
+    }
     setScores([...scores.filter((s) => s.dayId !== day.id), session])
     completeLesson('capstone', finalScore)
+    setPlacements(finalPlacements)
     setPhase('score')
   }
 
@@ -97,11 +131,22 @@ export default function Capstone() {
       )}
 
       {phase === 'setups' && day && (
-        <SetupsPhase day={day} answers={setupAnswers} setAnswers={setSetupAnswers} onFinalize={finalize} />
+        <SetupsPhase day={day} answers={setupAnswers} setAnswers={setSetupAnswers} onFinalize={afterSetups} />
+      )}
+
+      {phase === 'place' && day && (
+        <div className="my-8">
+          <PhaseHeader phaseLabel="Phase 4 · Place your trades" title={day.title} subtitle="For each TAKE, set entry, stop, T1, T2." />
+          <TradePlacement
+            day={day}
+            setups={day.setups.filter((s) => setupAnswers[s.id] === 'TAKE' && s.idealEntry !== undefined)}
+            onComplete={(p) => finalize(p)}
+          />
+        </div>
       )}
 
       {phase === 'score' && day && (
-        <ScoreBreakdown day={day} score={scores.find((s) => s.dayId === day.id)} premarketChecks={premarketChecks} openTypeAnswer={openTypeAnswer} setupAnswers={setupAnswers} onReset={resetAll} />
+        <ScoreBreakdown day={day} score={scores.find((s) => s.dayId === day.id)} placements={placements} openTypeAnswer={openTypeAnswer} setupAnswers={setupAnswers} onReset={resetAll} />
       )}
     </LessonLayout>
   )
@@ -242,10 +287,10 @@ function SetupsPhase({ day, answers, setAnswers, onFinalize }: { day: CapstoneDa
   )
 }
 
-function ScoreBreakdown({ day, score, premarketChecks, openTypeAnswer, setupAnswers, onReset }: {
+function ScoreBreakdown({ day, score, placements, openTypeAnswer, setupAnswers, onReset }: {
   day: CapstoneDay
   score: SessionScore | undefined
-  premarketChecks: boolean[]
+  placements: Record<string, Placement>
   openTypeAnswer: OpenType | null
   setupAnswers: Record<string, 'TAKE' | 'SKIP' | null>
   onReset: () => void
@@ -260,10 +305,11 @@ function ScoreBreakdown({ day, score, premarketChecks, openTypeAnswer, setupAnsw
   if (!score.openTypeCorrect) weakAreas.push('Open Type classification — review Lesson 5.')
   if (score.takeSkipCorrect < score.takeSkipTotal) weakAreas.push('Take/Skip decisions — review Lesson 8.')
   if (score.premarketCount < PREMARKET_ITEMS.length) weakAreas.push('Pre-market routine — review Lesson 10.')
+  if (score.placementMax > 0 && score.placementScore < score.placementMax) weakAreas.push('Trade placement (entry/stop/T1/T2) — practice with the cheat sheet matrix.')
 
   return (
     <div className="my-8">
-      <PhaseHeader phaseLabel="Phase 4 · Results" title="Session complete" subtitle="Here's how you did." />
+      <PhaseHeader phaseLabel="Phase 5 · Results" title="Session complete" subtitle="Here's how you did." />
 
       <div className="my-6 rounded-2xl border border-poc-gold/40 bg-gradient-to-br from-bg-card via-bg-card to-poc-gold/5 p-8 text-center">
         <div className="text-7xl font-head font-bold mb-2">
@@ -274,10 +320,16 @@ function ScoreBreakdown({ day, score, premarketChecks, openTypeAnswer, setupAnsw
         <div className="text-sm text-text-secondary">{day.title}</div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
-        <ScoreCard title="Open Type" value={`${score.openTypeCorrect ? 25 : 0} / 25`} detail={score.openTypeCorrect ? `Correctly identified ${day.openType}` : `You guessed ${openTypeAnswer}. Correct: ${day.openType}`} good={score.openTypeCorrect} />
-        <ScoreCard title="Take/Skip" value={`${Math.round((score.takeSkipCorrect / score.takeSkipTotal) * 60)} / 60`} detail={`${score.takeSkipCorrect} of ${score.takeSkipTotal} decisions correct`} good={score.takeSkipCorrect === score.takeSkipTotal} />
-        <ScoreCard title="Pre-market" value={`${Math.round((score.premarketCount / PREMARKET_ITEMS.length) * 15)} / 15`} detail={`${score.premarketCount} of ${PREMARKET_ITEMS.length} checklist items completed`} good={score.premarketCount === PREMARKET_ITEMS.length} />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 my-6">
+        <ScoreCard title="Open Type" value={`${score.openTypeCorrect ? 25 : 0} / 25`} detail={score.openTypeCorrect ? `${day.openType}` : `You guessed ${openTypeAnswer}. Correct: ${day.openType}`} good={score.openTypeCorrect} />
+        <ScoreCard title="Take/Skip" value={`${Math.round((score.takeSkipCorrect / score.takeSkipTotal) * 50)} / 50`} detail={`${score.takeSkipCorrect} of ${score.takeSkipTotal} correct`} good={score.takeSkipCorrect === score.takeSkipTotal} />
+        <ScoreCard title="Pre-market" value={`${Math.round((score.premarketCount / PREMARKET_ITEMS.length) * 10)} / 10`} detail={`${score.premarketCount} of ${PREMARKET_ITEMS.length} items`} good={score.premarketCount === PREMARKET_ITEMS.length} />
+        <ScoreCard
+          title="Placement"
+          value={score.placementMax > 0 ? `${Math.round((score.placementScore / score.placementMax) * 15)} / 15` : 'N/A'}
+          detail={score.placementMax > 0 ? `${score.placementScore} of ${score.placementMax} placement checks` : 'No TAKE setups'}
+          good={score.placementMax > 0 && score.placementScore === score.placementMax}
+        />
       </div>
 
       <div className="my-6 rounded-xl border border-border-subtle bg-bg-card p-6">
@@ -286,6 +338,8 @@ function ScoreBreakdown({ day, score, premarketChecks, openTypeAnswer, setupAnsw
           {day.setups.map((s) => {
             const ans = setupAnswers[s.id]
             const correct = ans === s.optimal
+            const placement = placements[s.id]
+            const placementResult = (placement && ans === 'TAKE' && s.idealEntry !== undefined) ? scorePlacement(s, placement) : null
             return (
               <li key={s.id} className={`p-4 rounded-lg border ${correct ? 'border-bull-green/40 bg-bull-green/5' : 'border-bear-red/40 bg-bear-red/5'}`}>
                 <div className="flex items-baseline justify-between mb-1">
@@ -296,6 +350,14 @@ function ScoreBreakdown({ day, score, premarketChecks, openTypeAnswer, setupAnsw
                 </div>
                 <p className="text-xs text-text-secondary mb-1">{s.location}</p>
                 <p className="text-sm">{s.rationale}</p>
+                {placementResult && (
+                  <div className="mt-2 pt-2 border-t border-border-subtle/50">
+                    <div className="text-[10px] font-mono uppercase text-text-secondary mb-1">Placement: {placementResult.score}/{placementResult.max}</div>
+                    <ul className="text-xs space-y-0.5">
+                      {placementResult.notes.map((n, i) => <li key={i} className={n.startsWith('✓') ? 'text-bull-green' : 'text-bear-red/80'}>{n}</li>)}
+                    </ul>
+                  </div>
+                )}
               </li>
             )
           })}

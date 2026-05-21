@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { LESSONS } from '../data/lessons'
 import { useProgress } from '../hooks/useProgress'
+import { useStreak } from '../hooks/useStreak'
 
 const Logo = () => (
   <Link to="/" className="flex items-center gap-2 mb-6 group">
@@ -19,12 +20,12 @@ const Logo = () => (
 )
 
 const Star = ({ filled }: { filled: boolean }) => (
-  <span className={filled ? 'text-poc-gold' : 'text-text-muted/30'}>★</span>
+  <span aria-hidden="true" className={filled ? 'text-poc-gold' : 'text-text-muted/30'}>★</span>
 )
 
 function StarRow({ n }: { n: number }) {
   return (
-    <span className="text-xs">
+    <span className="text-xs" role="img" aria-label={`Difficulty: ${n} of 5`}>
       {[1,2,3,4,5].map((i) => <Star key={i} filled={i <= n} />)}
     </span>
   )
@@ -74,17 +75,27 @@ function LessonItem({ lesson, completed, unlocked, active }: {
 
 export default function Sidebar() {
   const { progress, isUnlocked, completedCount } = useProgress()
+  const { streak } = useStreak()
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const inner = (
     <>
       <Logo />
-      <div className="mb-4 px-3">
-        <div className="text-xs text-text-secondary mb-1">Progress</div>
-        <div className="text-sm font-mono">
-          <span className="text-poc-gold font-bold">{completedCount}</span>
-          <span className="text-text-muted"> / {LESSONS.length}</span>
+      <div className="mb-4 px-3 grid grid-cols-2 gap-3">
+        <div>
+          <div className="text-[10px] text-text-secondary uppercase tracking-wider mb-0.5">Progress</div>
+          <div className="text-sm font-mono">
+            <span className="text-poc-gold font-bold">{completedCount}</span>
+            <span className="text-text-muted">/{LESSONS.length}</span>
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] text-text-secondary uppercase tracking-wider mb-0.5">Streak</div>
+          <div className="text-sm font-mono">
+            <span className="text-hvn-teal font-bold">{streak.count}</span>
+            <span className="text-text-muted">d</span>
+          </div>
         </div>
       </div>
       <nav className="space-y-1.5">
@@ -104,6 +115,9 @@ export default function Sidebar() {
         </Link>
         <Link to="/glossary" className="block px-3 py-2 text-sm text-text-secondary hover:text-poc-gold transition-colors">
           📖 Glossary
+        </Link>
+        <Link to="/settings" className="block px-3 py-2 text-sm text-text-secondary hover:text-poc-gold transition-colors">
+          ⚙ Settings
         </Link>
       </div>
     </>

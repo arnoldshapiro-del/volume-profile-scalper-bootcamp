@@ -13,7 +13,11 @@ interface Props {
 }
 
 function StarRow({ n }: { n: number }) {
-  return <span>{Array.from({ length: 5 }).map((_, i) => <span key={i} className={i < n ? 'text-poc-gold' : 'text-text-muted/30'}>★</span>)}</span>
+  return (
+    <span role="img" aria-label={`Difficulty: ${n} of 5`}>
+      {Array.from({ length: 5 }).map((_, i) => <span aria-hidden="true" key={i} className={i < n ? 'text-poc-gold' : 'text-text-muted/30'}>★</span>)}
+    </span>
+  )
 }
 
 export default function LessonLayout({ lessonId, children, glossaryTerms }: Props) {

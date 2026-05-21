@@ -10,6 +10,13 @@ export interface CapstoneSetup {
   // Visual hint
   highlightPriceMin: number
   highlightPriceMax: number
+  // For TAKE setups: ideal trade placement (optional — null on SKIPs)
+  direction?: 'long' | 'short'
+  idealEntry?: number
+  idealStop?: number
+  idealT1?: number
+  idealT2?: number
+  placementTolerance?: number  // points of tolerance for "close enough"
 }
 
 export interface CapstoneDay {
@@ -97,6 +104,7 @@ export const DAYS: CapstoneDay[] = [
         id: 's1', name: 'H2 long', location: "at yesterday's VAL (40)",
         optimal: 'TAKE', rationale: "VAL is the institutional floor. On a balanced day, fading the extremes back to POC is the textbook trade.",
         highlightPriceMin: 38, highlightPriceMax: 44,
+        direction: 'long', idealEntry: 41, idealStop: 38, idealT1: 50, idealT2: 58, placementTolerance: 2,
       },
       {
         id: 's2', name: 'H2 long', location: 'inside an LVN at 52, no nearby HVN below current price',
@@ -107,6 +115,7 @@ export const DAYS: CapstoneDay[] = [
         id: 's3', name: 'H2 short', location: "at yesterday's VAH (60)",
         optimal: 'TAKE', rationale: "Mirror of the first setup. VAH = institutional ceiling on a balanced day. Take the fade to POC.",
         highlightPriceMin: 58, highlightPriceMax: 62,
+        direction: 'short', idealEntry: 59, idealStop: 62, idealT1: 50, idealT2: 42, placementTolerance: 2,
       },
     ],
   },
@@ -129,11 +138,13 @@ export const DAYS: CapstoneDay[] = [
         id: 's2', name: 'Bull flag', location: 'breaking out above naked POC (72)',
         optimal: 'TAKE', rationale: 'On a trend day with momentum to a magnet, this is the layup of the week.',
         highlightPriceMin: 70, highlightPriceMax: 74,
+        direction: 'long', idealEntry: 72, idealStop: 68, idealT1: 76, idealT2: 80, placementTolerance: 2,
       },
       {
         id: 's3', name: 'H2 long', location: 'pullback to developing POC at 64',
         optimal: 'TAKE', rationale: 'Trend day strategy = join on pullbacks to developing POC. This is the right way to engage.',
         highlightPriceMin: 62, highlightPriceMax: 66,
+        direction: 'long', idealEntry: 64, idealStop: 60, idealT1: 70, idealT2: 76, placementTolerance: 2,
       },
     ],
   },
@@ -156,6 +167,7 @@ export const DAYS: CapstoneDay[] = [
         id: 's2', name: 'Failed Breakout short', location: 'after re-entry into VA, rejection candle at 56',
         optimal: 'TAKE', rationale: "Four-step pattern complete: break, fail, re-enter, reject. Trapped buyers will fuel the down move toward POC.",
         highlightPriceMin: 54, highlightPriceMax: 58,
+        direction: 'short', idealEntry: 56, idealStop: 64, idealT1: 50, idealT2: 40, placementTolerance: 3,
       },
       {
         id: 's3', name: 'H2 short', location: 'at developing POC during the cascade',

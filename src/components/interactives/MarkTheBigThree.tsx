@@ -7,8 +7,7 @@ const palette = {
 
 interface Diagram {
   id: number
-  // profile is array of {price, width}
-  poc: number   // price for POC
+  poc: number
   vah: number
   val: number
 }
@@ -20,21 +19,35 @@ const DIAGRAMS: Diagram[] = [
   { id: 4, poc: 40, vah: 50, val: 32 },
 ]
 
-const LABELS = ['POC', 'VAH', 'VAL'] as const
-type Label = (typeof LABELS)[number]
+type Label = 'POC' | 'VAH' | 'VAL'
+type Target = 'poc' | 'vah' | 'val'
+const LABELS: Label[] = ['POC', 'VAH', 'VAL']
+
+type Assignments = Record<number, Partial<Record<Label, Target>>>
+type Feedback = Record<number, Partial<Record<Label, 'ok' | 'no'>>>
 
 export default function MarkTheBigThree() {
   const [idx, setIdx] = useState(0)
-  const [assignments, setAssignments] = useState<Record<number, Partial<Record<Label, 'poc' | 'vah' | 'val'>>>>({})
-  const [feedback, setFeedback] = useState<Record<number, Record<Label, 'ok' | 'no' | null>>>({})
+  const [activeLabel, setActiveLabel] = useState<Label>('POC')
+  const [assignments, setAssignments] = useState<Assignments>({})
+  const [feedback, setFeedback] = useState<Feedback>({})
 
   const diagram = DIAGRAMS[idx]
+  const dAssign = assignments[diagram.id] || {}
+  const dFeedback = feedback[diagram.id] || {}
 
-  function assign(label: Label, target: 'poc' | 'vah' | 'val') {
-    const next = { ...(assignments[diagram.id] || {}), [label]: target }
-    setAssignments({ ...assignments, [diagram.id]: next })
-    const correct = (label === 'POC' && target === 'poc') || (label === 'VAH' && target === 'vah') || (label === 'VAL' && target === 'val')
-    setFeedback((f) => ({ ...f, [diagram.id]: { ...(f[diagram.id] || { POC: null, VAH: null, VAL: null } as any), [label]: correct ? 'ok' : 'no' } }))
+  function assign(target: Target) {
+    const correct = (activeLabel === 'POC' && target === 'poc') ||
+                    (activeLabel === 'VAH' && target === 'vah') ||
+                    (activeLabel === 'VAL' && target === 'val')
+    setAssignments((a) => ({ ...a, [diagram.id]: { ...(a[diagram.id] || {}), [activeLabel]: target } }))
+    setFeedback((f) => ({ ...f, [diagram.id]: { ...(f[diagram.id] || {}), [activeLabel]: correct ? 'ok' : 'no' } }))
+
+    // Auto-advance the active label to the next un-correct one
+    const labelOrder: Label[] = ['POC', 'VAH', 'VAL']
+    const nextFeedback = { ...(feedback[diagram.id] || {}), [activeLabel]: correct ? 'ok' : 'no' }
+    const nextLabel = labelOrder.find((l) => nextFeedback[l] !== 'ok')
+    if (nextLabel) setActiveLabel(nextLabel)
   }
 
   const allCorrect = (id: number) => {
@@ -43,7 +56,12 @@ export default function MarkTheBigThree() {
   }
   const score = DIAGRAMS.filter((d) => allCorrect(d.id)).length
 
-  // SVG
+  function goTo(n: number) {
+    if (n < 0 || n >= DIAGRAMS.length) return
+    setIdx(n)
+    setActiveLabel('POC')
+  }
+
   const W = 600, H = 320
   const padX = 24
   const profileW = 200
@@ -67,92 +85,91 @@ export default function MarkTheBigThree() {
         <h4 className="font-head font-semibold text-xl">Interactive · Mark the Big Three</h4>
         <span className="text-xs font-mono text-text-secondary">Diagram {idx + 1} / {DIAGRAMS.length}</span>
       </div>
-      <p className="text-sm text-text-secondary mb-4">Click each label, then click the matching position on the profile.</p>
+      <p className="text-sm text-text-secondary mb-4">1) Select a label below. 2) Click the matching position on the profile.</p>
 
       <div className="rounded-lg overflow-hidden mb-4" style={{ background: palette.bg }}>
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
-          {/* Profile bars */}
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label={`Profile diagram ${idx + 1}: click to place the POC, VAH, or VAL label.`}>
           {profile.map((b, i) => {
             const isPoc = Math.abs(b.p - diagram.poc) < 1.5
-            const isVAH = Math.abs(b.p - diagram.vah) < 1.5
-            const isVAL = Math.abs(b.p - diagram.val) < 1.5
             return (
               <g key={i}>
                 <rect x={padX} y={toPx(b.p) - 4} width={b.w} height={8} fill={palette.hvn} opacity="0.85" rx="1" />
-                {isPoc && (
-                  <g style={{ cursor: 'pointer' }} onClick={() => activeLabel && assign(activeLabel, 'poc')}>
-                    <rect x={padX} y={toPx(b.p) - 5} width={b.w + 4} height={10} fill={palette.poc} opacity="0.95" rx="1" />
-                  </g>
-                )}
+                {isPoc && <rect x={padX} y={toPx(b.p) - 5} width={b.w + 4} height={10} fill={palette.poc} opacity="0.95" rx="1" />}
               </g>
             )
           })}
-          {/* VAH/VAL horizontal click zones */}
           <line x1={padX} y1={toPx(diagram.vah)} x2={padX + profileW + 30} y2={toPx(diagram.vah)} stroke={palette.purple} strokeDasharray="3 3" opacity="0.8" />
           <line x1={padX} y1={toPx(diagram.val)} x2={padX + profileW + 30} y2={toPx(diagram.val)} stroke={palette.purple} strokeDasharray="3 3" opacity="0.8" />
-          {/* Invisible click rects */}
-          <rect x={padX + profileW} y={toPx(diagram.poc) - 14} width={W - padX - profileW - 30} height={28} fill="transparent" style={{ cursor: 'pointer' }} onClick={() => activeLabel && assign(activeLabel, 'poc')} />
-          <rect x={padX + profileW} y={toPx(diagram.vah) - 14} width={W - padX - profileW - 30} height={28} fill="transparent" style={{ cursor: 'pointer' }} onClick={() => activeLabel && assign(activeLabel, 'vah')} />
-          <rect x={padX + profileW} y={toPx(diagram.val) - 14} width={W - padX - profileW - 30} height={28} fill="transparent" style={{ cursor: 'pointer' }} onClick={() => activeLabel && assign(activeLabel, 'val')} />
-          {/* Show user labels at the right side */}
-          {(['POC', 'VAH', 'VAL'] as const).map((lbl) => {
-            const tgt = assignments[diagram.id]?.[lbl]
-            const px = tgt === 'poc' ? toPx(diagram.poc) : tgt === 'vah' ? toPx(diagram.vah) : tgt === 'val' ? toPx(diagram.val) : null
-            if (px === null) return null
-            const ok = feedback[diagram.id]?.[lbl] === 'ok'
+
+          {/* Click zones */}
+          {(['poc', 'vah', 'val'] as Target[]).map((t) => {
+            const price = t === 'poc' ? diagram.poc : t === 'vah' ? diagram.vah : diagram.val
             return (
-              <g key={lbl} style={{ opacity: ok ? 1 : 0.7 }}>
-                <text x={W - padX - 20} y={px + 4} fill={ok ? '#10B981' : '#EF4444'} fontFamily="Oxanium, sans-serif" fontSize="14" fontWeight="700" textAnchor="end">
-                  {lbl} {ok ? '✓' : '✗'}
-                </text>
-              </g>
+              <rect
+                key={t}
+                x={padX + profileW}
+                y={toPx(price) - 14}
+                width={W - padX - profileW - 30}
+                height={28}
+                fill="transparent"
+                style={{ cursor: 'pointer' }}
+                onClick={() => assign(t)}
+                aria-label={`Place ${activeLabel} at ${t.toUpperCase()} position`}
+              />
+            )
+          })}
+
+          {/* Render placed labels */}
+          {LABELS.map((lbl) => {
+            const tgt = dAssign[lbl]
+            if (!tgt) return null
+            const price = tgt === 'poc' ? diagram.poc : tgt === 'vah' ? diagram.vah : diagram.val
+            const ok = dFeedback[lbl] === 'ok'
+            return (
+              <text
+                key={lbl}
+                x={W - padX - 20}
+                y={toPx(price) + 4}
+                fill={ok ? '#10B981' : '#EF4444'}
+                fontFamily="Oxanium, sans-serif"
+                fontSize="14"
+                fontWeight="700"
+                textAnchor="end"
+              >
+                {lbl} {ok ? '✓' : '✗'}
+              </text>
             )
           })}
         </svg>
       </div>
 
-      <ActiveLabelChooser
-        onSelect={() => {}}
-        feedback={feedback[diagram.id] || {}}
-      />
+      <div>
+        <div className="text-xs font-mono uppercase text-text-secondary mb-2 tracking-wider">Active label</div>
+        <div className="flex gap-2">
+          {LABELS.map((l) => {
+            const f = dFeedback[l]
+            let cls = 'px-4 py-2 rounded-lg border font-head font-semibold text-sm transition-all '
+            if (f === 'ok') cls += 'border-bull-green bg-bull-green/20 text-bull-green'
+            else if (activeLabel === l) cls += 'border-poc-gold bg-poc-gold/20 text-poc-gold'
+            else cls += 'border-border-subtle bg-bg-elevated text-text-primary hover:border-accent-blue'
+            return (
+              <button type="button" key={l} className={cls} onClick={() => setActiveLabel(l)}>
+                {l} {f === 'ok' && '✓'}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
       <div className="mt-4 flex items-center justify-between">
         <div className="text-xs font-mono text-text-secondary">
           Score: <span className="text-poc-gold font-bold">{score}</span> / {DIAGRAMS.length}
+          {score === DIAGRAMS.length && <span className="ml-2 text-bull-green">✓ Perfect</span>}
         </div>
         <div className="flex gap-2">
-          {idx > 0 && <button className="btn-secondary" onClick={() => setIdx(idx - 1)}>← Prev</button>}
-          {idx < DIAGRAMS.length - 1 && allCorrect(diagram.id) && <button className="btn-primary" onClick={() => setIdx(idx + 1)}>Next →</button>}
+          {idx > 0 && <button className="btn-secondary" onClick={() => goTo(idx - 1)}>← Prev</button>}
+          {idx < DIAGRAMS.length - 1 && allCorrect(diagram.id) && <button className="btn-primary" onClick={() => goTo(idx + 1)}>Next →</button>}
         </div>
-      </div>
-    </div>
-  )
-
-  // (Active label state intentionally hoisted into nested component below — see below)
-}
-
-let activeLabel: Label | null = 'POC' // module-level fallback; replaced by component state
-
-function ActiveLabelChooser({ onSelect, feedback }: { onSelect: (l: Label) => void, feedback: Partial<Record<Label, 'ok' | 'no' | null>> }) {
-  const [sel, setSel] = useState<Label>('POC')
-  // mirror to module-level so SVG clicks can read it
-  activeLabel = sel
-  return (
-    <div>
-      <div className="text-xs font-mono uppercase text-text-secondary mb-2">1. Select label · 2. Click target on profile</div>
-      <div className="flex gap-2">
-        {LABELS.map((l) => {
-          const f = feedback[l]
-          let cls = "px-4 py-2 rounded-lg border font-head font-semibold text-sm transition-all "
-          if (f === 'ok') cls += 'border-bull-green bg-bull-green/20 text-bull-green'
-          else if (sel === l) cls += 'border-poc-gold bg-poc-gold/20 text-poc-gold'
-          else cls += 'border-border-subtle bg-bg-elevated text-text-primary hover:border-accent-blue'
-          return (
-            <button type="button" key={l} className={cls} onClick={() => { setSel(l); onSelect(l) }}>
-              {l} {f === 'ok' && '✓'}
-            </button>
-          )
-        })}
       </div>
     </div>
   )
